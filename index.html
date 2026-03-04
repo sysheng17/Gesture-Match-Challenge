@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gesture Match Challenge</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://adsgram.ai/sdk/v1/adsgram.js"></script>
@@ -60,6 +61,12 @@
     </div>
 
     <script>
+        // 初始化 Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.expand();
+            window.Telegram.WebApp.ready();
+        }
+
         const videoElement = document.getElementById('input_video');
         const canvasElement = document.getElementById('guide-canvas');
         const ctx = canvasElement.getContext('2d');
@@ -70,9 +77,11 @@
         const timerBar = document.getElementById('timer-bar');
         const energyEl = document.getElementById('energy-val');
 
-        // --- Configuration ---
+        // --- Configuration (修復 NaN 的初始化) ---
         const MAX_ENERGY = 5;
-        let energy = parseInt(localStorage.getItem('gesture_match_energy')) ?? MAX_ENERGY;
+        let storedEnergy = localStorage.getItem('gesture_match_energy');
+        let energy = (storedEnergy !== null && !isNaN(parseInt(storedEnergy))) ? parseInt(storedEnergy) : MAX_ENERGY;
+
         const AdController = window.Adsgram ? window.Adsgram.init({ blockId: "int-1234" }) : null;
         
         let game = {
@@ -90,8 +99,11 @@
         let animationFrameId = null;
 
         function updateEnergyUI() {
+            // 安全檢查：如果 energy 是 NaN，強制重置
+            if (isNaN(energy)) energy = MAX_ENERGY;
+            
             energyEl.innerText = energy;
-            localStorage.setItem('gesture_match_energy', energy);
+            localStorage.setItem('gesture_match_energy', energy.toString());
             
             if (energy <= 0) {
                 startBtn.innerText = "📺 Refill Energy (Watch Ad)";
@@ -146,7 +158,6 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 let count = 0;
-                // Finger detection logic (Thumb + 4 fingers)
                 [8, 12, 16, 20].forEach((tip, idx) => {
                     const pip = [6, 10, 14, 18][idx];
                     if (lm[tip].y < lm[pip].y) count++;
@@ -278,6 +289,7 @@
             updateEnergyUI();
         }
 
+        // 初始 UI 更新
         updateEnergyUI();
     </script>
 </body>
