@@ -26,7 +26,6 @@
         #stats { font-size: 20px; letter-spacing: 1px; }
         #detected-hint { margin-top: 10px; color: var(--success); font-weight: bold; }
         
-        /* Energy UI */
         #energy-display { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--gold); color: var(--gold); font-weight: bold; z-index: 10; }
 
         #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; padding: 20px; }
@@ -62,9 +61,10 @@
 
     <script>
         // 初始化 Telegram WebApp
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.expand();
-            window.Telegram.WebApp.ready();
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) {
+            tg.expand();
+            tg.ready();
         }
 
         const videoElement = document.getElementById('input_video');
@@ -79,12 +79,20 @@
 
         // --- Configuration ---
         const MAX_ENERGY = 5;
-        let storedEnergy = localStorage.getItem('gesture_match_energy');
-        let energy = (storedEnergy !== null && !isNaN(parseInt(storedEnergy))) ? parseInt(storedEnergy) : MAX_ENERGY;
-
-        // 使用你的真實 Block ID
-        const AdController = window.Adsgram ? window.Adsgram.init({ blockId: "24275" }) : null;
+        let energy = parseInt(localStorage.getItem('gesture_match_energy')) || MAX_ENERGY;
         
+        // 將 AdController 改為動態初始化
+        let AdController = null;
+        const BLOCK_ID = "24275"; 
+
+        function initAdsgram() {
+            if (window.Adsgram) {
+                // 如果廣告不出來，試著把 BLOCK_ID 改成 "int-24275"
+                AdController = window.Adsgram.init({ blockId: BLOCK_ID });
+                console.log("Adsgram initialized with ID:", BLOCK_ID);
+            }
+        }
+
         let game = {
             active: false,
             score: 0,
@@ -117,35 +125,33 @@
 
         async function handleAdRequest() {
             startBtn.disabled = true;
-            startBtn.innerText = "Connecting to Ads...";
+            startBtn.innerText = "Loading Ad...";
             
+            // 如果 Controller 還沒準備好，嘗試重新抓取一次
+            if (!AdController) initAdsgram();
+
             if (!AdController) {
-                alert("Ad system is unavailable. Please check your connection or turn off AdBlock.");
+                alert("Adsgram SDK failed to load. Please restart the app.");
                 startBtn.disabled = false;
                 updateEnergyUI();
                 return;
             }
 
             try {
-                // 顯示廣告
                 const result = await AdController.show();
-                
-                // 嚴格判斷廣告是否完整播放
                 if (result && result.done) {
                     energy = MAX_ENERGY;
                     updateEnergyUI();
+                    if (tg) tg.HapticFeedback.notificationOccurred('success');
                     alert("Success! Energy refilled.");
                 } else {
                     alert("You must watch the full ad to earn energy.");
                 }
             } catch (e) {
-                console.error("Adsgram Error:", e);
-                // 針對常見錯誤進行提示
-                if (e.message && e.message.includes('not found')) {
-                    alert("No ads available right now. Please try again in a few minutes.");
-                } else {
-                    alert("Failed to load ad. Please try again.");
-                }
+                console.error("Adsgram Error Details:", e);
+                // 檢查是否為 No Ads
+                const errorMsg = e.error || e.message || "Unknown error";
+                alert(`Ad Error: ${errorMsg}. Please try again later.`);
             } finally {
                 startBtn.disabled = false;
                 updateEnergyUI();
@@ -204,11 +210,15 @@
             width: 640, height: 480
         });
 
-        setTimeout(() => {
-            startBtn.disabled = false;
-            descEl.innerText = "Vision System Ready!";
-            updateEnergyUI();
-        }, 3000);
+        // 頁面完全載入後初始化
+        window.onload = () => {
+            initAdsgram();
+            setTimeout(() => {
+                startBtn.disabled = false;
+                descEl.innerText = "Vision System Ready!";
+                updateEnergyUI();
+            }, 2000);
+        };
 
         function startGame() {
             if (energy <= 0) return;
@@ -251,6 +261,7 @@
         }
 
         function handleCorrect() {
+            if (tg) tg.HapticFeedback.impactOccurred('light');
             game.active = false;
             game.score += 10;
             document.getElementById('score').innerText = game.score;
@@ -276,6 +287,7 @@
                 timerBar.style.width = percentage + "%";
                 
                 if (game.timeLeft <= 0) {
+                    if (tg) tg.HapticFeedback.notificationOccurred('error');
                     game.hp--;
                     document.getElementById('hp').innerText = game.hp;
                     
