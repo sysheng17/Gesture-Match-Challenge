@@ -77,12 +77,13 @@
         const timerBar = document.getElementById('timer-bar');
         const energyEl = document.getElementById('energy-val');
 
-        // --- Configuration (修復 NaN 的初始化) ---
+        // --- Configuration ---
         const MAX_ENERGY = 5;
         let storedEnergy = localStorage.getItem('gesture_match_energy');
         let energy = (storedEnergy !== null && !isNaN(parseInt(storedEnergy))) ? parseInt(storedEnergy) : MAX_ENERGY;
 
-        const AdController = window.Adsgram ? window.Adsgram.init({ blockId: "int-24275" }) : null;
+        // 使用你的真實 Block ID
+        const AdController = window.Adsgram ? window.Adsgram.init({ blockId: "24275" }) : null;
         
         let game = {
             active: false,
@@ -99,9 +100,7 @@
         let animationFrameId = null;
 
         function updateEnergyUI() {
-            // 安全檢查：如果 energy 是 NaN，強制重置
             if (isNaN(energy)) energy = MAX_ENERGY;
-            
             energyEl.innerText = energy;
             localStorage.setItem('gesture_match_energy', energy.toString());
             
@@ -118,27 +117,38 @@
 
         async function handleAdRequest() {
             startBtn.disabled = true;
-            startBtn.innerText = "Loading Ad...";
+            startBtn.innerText = "Connecting to Ads...";
             
             if (!AdController) {
-                alert("Demo Mode: Ad watched! Energy restored to 5.");
-                energy = MAX_ENERGY;
-                updateEnergyUI();
+                alert("Ad system is unavailable. Please check your connection or turn off AdBlock.");
                 startBtn.disabled = false;
+                updateEnergyUI();
                 return;
             }
 
             try {
+                // 顯示廣告
                 const result = await AdController.show();
-                if (result.done) {
+                
+                // 嚴格判斷廣告是否完整播放
+                if (result && result.done) {
                     energy = MAX_ENERGY;
                     updateEnergyUI();
-                    alert("Energy refilled!");
+                    alert("Success! Energy refilled.");
+                } else {
+                    alert("You must watch the full ad to earn energy.");
                 }
             } catch (e) {
-                alert("Ad failed to load. Try again later.");
+                console.error("Adsgram Error:", e);
+                // 針對常見錯誤進行提示
+                if (e.message && e.message.includes('not found')) {
+                    alert("No ads available right now. Please try again in a few minutes.");
+                } else {
+                    alert("Failed to load ad. Please try again.");
+                }
             } finally {
                 startBtn.disabled = false;
+                updateEnergyUI();
             }
         }
 
@@ -202,7 +212,6 @@
 
         function startGame() {
             if (energy <= 0) return;
-            
             energy--;
             updateEnergyUI();
 
@@ -289,9 +298,7 @@
             updateEnergyUI();
         }
 
-        // 初始 UI 更新
         updateEnergyUI();
     </script>
 </body>
 </html>
-
